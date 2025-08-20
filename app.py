@@ -99,7 +99,6 @@ def get_db():
 
 def main():
     st.set_page_config(page_title="Medical Inference App", page_icon="🏥")
-
     # Initialize session state
     if "page" not in st.session_state:
         st.session_state.page = "auth"
@@ -134,7 +133,7 @@ def main():
     # Main app logic
     if "user" not in st.session_state or st.session_state.page == "auth":
         # Show authentication page
-        st.title("🏥 Medical Inference App")
+        st.title("Medical Inference App")
 
         auth_mode = st.radio("Choose action", ["Login", "Sign Up"], key="auth_mode")
 

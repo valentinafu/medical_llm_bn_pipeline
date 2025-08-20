@@ -1,26 +1,3 @@
-# from selenium import webdriver
-# from selenium.webdriver.chrome.options import Options
-# from bs4 import BeautifulSoup
-#
-# def scrape_page(url):
-#     options = Options()
-#     options.add_argument("--headless")
-#     options.add_argument("--disable-gpu")
-#     driver = webdriver.Chrome(options=options)
-#
-#     driver.get(url)
-#     html = driver.page_source
-#     soup = BeautifulSoup(html, 'html.parser')
-#     driver.quit()
-#
-#     main_content = soup.find('div', class_='main-content') or soup.find('main')
-#     if not main_content:
-#         print("Main content not found")
-#         return ""
-#
-#     return main_content.get_text(separator="\n").strip()
-
-
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -38,7 +15,7 @@ def scrape_page(url):
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
         driver.get(url)
-        driver.implicitly_wait(10)  # Wait for JS to render
+        driver.implicitly_wait(10)
         html = driver.page_source
         driver.quit()
 
@@ -58,4 +35,4 @@ def scrape_page(url):
         return main_content.get_text(separator="\n", strip=True)
 
     except Exception as e:
-        return f"[ERROR] Selenium scraping failed: {str(e)}"
+        return f"[ERROR] Selenium scraping on current page failed: {str(e)}"
