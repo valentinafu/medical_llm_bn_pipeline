@@ -1,4 +1,30 @@
+"""
+This script is the main entrypoint for the **Medical Inference App** built with Streamlit.
 
+Key features:
+1. Session Management:
+   - Initializes and restores Streamlit session state for user authentication.
+   - Persists user sessions
+
+2. Authentication:
+   - Provides login and signup forms
+   - Controls navigation between authentication and dashboard views.
+
+3. Role-Based Dashboards:
+   - Routes logged in users to different views depending on their role:
+        * patient → `patient_view()`
+        * admin   → `admin_view()`
+
+4. Database Integration:
+   - Connects to the SQLAlchemy `SessionLocal` for persistent user storage.
+   - Restores user sessions from database if session markers are found.
+
+5. Debugging:
+   - Optional debug info shown in the sidebar for development.
+
+Purpose: Acts as the Streamlit frontend controller for authentication,
+         session persistence, and navigation in the medical inference system.
+"""
 
 import streamlit as st
 from sqlalchemy.orm import Session
@@ -9,31 +35,7 @@ from models.models import User
 from views.admin_view import admin_view
 from views.patient_view import patient_view
 
-# This script is the main entrypoint for the **Medical Inference App** built with Streamlit.
-#
-# Key features:
-# 1. Session Management:
-#    - Initializes and restores Streamlit session state for user authentication.
-#    - Persists user sessions
-#
-# 2. Authentication:
-#    - Provides login and signup forms
-#    - Controls navigation between authentication and dashboard views.
-#
-# 3. Role-Based Dashboards:
-#    - Routes logged in users to different views depending on their role:
-#         * patient → `patient_view()`
-#         * admin   → `admin_view()`
-#
-# 4. Database Integration:
-#    - Connects to the SQLAlchemy `SessionLocal` for persistent user storage.
-#    - Restores user sessions from database if session markers are found.
-#
-# 5. Debugging:
-#    - Optional debug info shown in the sidebar for development.
-#
-# Purpose: Acts as the Streamlit frontend controller for authentication,
-#          session persistence, and navigation in the medical inference system.
+
 def get_db():
     db = SessionLocal()
     try:

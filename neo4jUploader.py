@@ -1,35 +1,33 @@
+"""
+This module defines the `Neo4jUploader` class, which provides utilities
+to insert, organize, and query knowledge graph data in a Neo4j database.
+Key features:
+1. Connection management:
+   - Opens and closes sessions for a Neo4j instance.
+2. Data insertion:
+   - sanitize_rel(rel): Cleans and standardizes relation labels into Neo4j formats.
+   - insert_triple(subj, rel, obj): Inserts one triple (subject–relation–object) in the graph.
+   - insert_triples(triples): Bulk inserts of the multiple triples.
+3. Category and grouping:
+   - attach_centers_for_page(triples, category, attach_all_nodes):
+        Groups related nodes under a category which identifies the condition, identifies "center" nodes,
+        and attaches them to the category.
+   - get_categories(): Retrieves all available categories from the graph
+4. Querying knowledge:
+   - get_causal_triples(category, allowed_relations, depth):
+        Returns causal triples (source, relation, target) for a given category
+        with optional filtering and traversal depth.
+   - get_symptoms(category, symptom_rels):
+        Extracts symptom nodes connected to a given category through predefined
+        symptom-like relations (e.g., HAS_SYMPTOM, PRESENTS_WITH).
+Purpose: This class acts as the main bridge between extracted triples (from text/LLM)
+         and Neo4j storage, enabling structured querying of medical
+         knowledge for downstream tasks like Bayesian Network construction.
+"""
 import re
 from typing import Optional, Set, List, Tuple
-
 from neo4j import GraphDatabase
 
-# This module defines the `Neo4jUploader` class, which provides utilities
-# to insert, organize, and query knowledge graph data in a Neo4j database.
-# Key features:
-# 1. Connection management:
-#    - Opens and closes sessions for a Neo4j instance.
-#
-# 2. Data insertion:
-#    - sanitize_rel(rel): Cleans and standardizes relation labels into Neo4j formats.
-#    - insert_triple(subj, rel, obj): Inserts one triple (subject–relation–object) in the graph.
-#    - insert_triples(triples): Bulk inserts of the multiple triples.
-#
-# 3. Category and grouping:
-#    - attach_centers_for_page(triples, category, attach_all_nodes):
-#         Groups related nodes under a category which identifies the condition, identifies "center" nodes,
-#         and attaches them to the category.
-#    - get_categories(): Retrieves all available categories from the graph
-#
-# 4. Querying knowledge:
-#    - get_causal_triples(category, allowed_relations, depth):
-#         Returns causal triples (source, relation, target) for a given category
-#         with optional filtering and traversal depth.
-#    - get_symptoms(category, symptom_rels):
-#         Extracts symptom nodes connected to a given category through predefined
-#         symptom-like relations (e.g., HAS_SYMPTOM, PRESENTS_WITH).
-# Purpose: This class acts as the main bridge between extracted triples (from text/LLM)
-#          and Neo4j storage, enabling structured querying of medical
-#          knowledge for downstream tasks like Bayesian Network construction.
 
 class Neo4jUploader:
     def __init__(self, uri, user, password, database: str = "neo4j"):
@@ -40,14 +38,14 @@ class Neo4jUploader:
         self.driver.close()
 
     def sanitize_rel(self, rel: str) -> str:
-            if rel is None:
-                rel = "RELATED_TO"
-            rel = rel.replace(" ", "_")
-            rel = re.sub(r"[^A-Za-z0-9_]", "_", rel)
-            rel = rel.upper()
-            if not re.match(r"^[A-Z_][A-Z0-9_]*$", rel):
-                rel = "R_" + rel
-            return rel or "RELATED_TO"
+        if rel is None:
+            rel = "RELATED_TO"
+        rel = rel.replace(" ", "_")
+        rel = re.sub(r"[^A-Za-z0-9_]", "_", rel)
+        rel = rel.upper()
+        if not re.match(r"^[A-Z_][A-Z0-9_]*$", rel):
+            rel = "R_" + rel
+        return rel or "RELATED_TO"
 
     def _session(self):
         return self.driver.session(database=self.database)
@@ -248,7 +246,6 @@ class Neo4jUploader:
             for r in rows if r.get("source") and r.get("relation") and r.get("target")
         ]
 
-
     def get_symptoms(self, category: str, symptom_rels: Optional[Set[str]] = None) -> List[str]:
         if not category or not category.strip():
             return []
@@ -273,7 +270,8 @@ class Neo4jUploader:
                      RETURN collect(DISTINCT s.name) AS A1
                      }
 
-                     //: symptom -> category member
+                     //: symptom -
+                     > category member
                      CALL {
                  WITH seed, rels
                      MATCH (hub:Category)<-[:PART_OF]-(s2:Entity)-[r2]->(a2:Entity)
@@ -284,7 +282,7 @@ class Neo4jUploader:
 
                  WITH seed, rels, coalesce (A1, []) + coalesce (A2, []) AS A
 
-                     // B: heading- style nodes 
+                     // B: heading- style nodes
                      CALL {
                  WITH seed, rels
                      OPTIONAL MATCH (h:Entity)
@@ -320,5 +318,3 @@ class Neo4jUploader:
             rows = session.run(cypher, {"cat": cat, "rels": rels}).data()
 
         return [r["symptom"] for r in rows]
-
-

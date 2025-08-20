@@ -1,29 +1,33 @@
+"""
+This script provides two main functions that interact with the OpenAI API for
+medical knowledge extraction and Bayesian Network (BN) construction:
+
+1. extract_triples(text):
+   - Takes raw clinical text as input.
+   - prompts the OpenAI model to extract medically relevant triples in the form
+     (Subject, Relation, Object).
+   - parses the model’s result into a list of tuples.
+
+2. generate_bn_structure_and_probabilities_from_llm(target_condition, causes, symptoms):
+   - Takes a target medical condition, its known causes, and its symptoms as input.
+   - Prompts the OpenAI model to produce a Bayesian Network structure in JSON format:
+        * Defines the rules for treating LLM as an Bayesian Network Excpert
+        * Defines nodes (causes, condition, symptoms, optional treatments).
+        * Creates edges that follow medical causal logic .
+        * Generates conditional probability distributions (CPDs), either full tables or
+          Noisy-OR models, with realistic numeric probabilities.
+   - Returns the BN as predefined JSON for further parsing and model building.
+
+"""
+
 from openai import OpenAI
-# This script provides two main functions that interact with the OpenAI API for
-# medical knowledge extraction and Bayesian Network (BN) construction:
-#
-# 1. extract_triples(text):
-#    - Takes raw clinical text as input.
-#    - prompts the OpenAI model to extract medically relevant triples in the form
-#      (Subject, Relation, Object).
-#    - parses the model’s result into a list of tuples.
-#
-# 2. generate_bn_structure_and_probabilities_from_llm(target_condition, causes, symptoms):
-#    - Takes a target medical condition, its known causes, and its symptoms as input.
-#    - Prompts the OpenAI model to produce a Bayesian Network structure in JSON format:
-#         * Defines the rules for treating LLM as an Bayesian Network Excpert
-#         * Defines nodes (causes, condition, symptoms, optional treatments).
-#         * Creates edges that follow medical causal logic .
-#         * Generates conditional probability distributions (CPDs), either full tables or
-#           Noisy-OR models, with realistic numeric probabilities.
-#    - Returns the BN as predefined JSON for further parsing and model building.
 
 client = OpenAI(
     api_key="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")
 model = "gpt-4.1"
 
 
-#Extract triples that came from test scraping
+# Extract triples that came from test scraping
 def extract_triples(text):
     print("Extracting triples")
     prompt = f"""
@@ -52,7 +56,7 @@ def extract_triples(text):
     return triples
 
 
-#Extract triples that came from test scraping
+# Extract triples that came from test scraping
 def generate_bn_structure_and_probabilities_from_llm(target_condition, causes, symptoms):
     def format_list(name, items):
         return f"- {name}:\n" + "\n".join([f"  - {item}" for item in items])
@@ -147,4 +151,3 @@ def generate_bn_structure_and_probabilities_from_llm(target_condition, causes, s
     )
     content = response.choices[0].message.content if response and response.choices else None
     return content
-

@@ -1,3 +1,48 @@
+"""
+This module implements the **Admin Panel** of the Medical Inference App, providing
+workflows to extract knowledge from clinical/medical text/URLs, save the results as triple it in Neo4j, and
+construct Bayesian Networks (BNs) for medical inference.
+
+Key features:
+1. Role Enforcement:
+   - require_admin_role():  access to admin role only views.
+
+2. Triple processing helpers:
+   - lc_triples(): lowercases triples for consistency.
+   - _noisy_or_prob(): calculates noisy-OR probabilities for CPDs.
+   - _stable_ns(): generates unique, stable widget keys for Streamlit forms.
+   - _is_noisy_or(): checks if a CPD uses a noisy-OR model or not.
+
+3. Neo4j and DB Integration:
+   - get_conn(): connects to Neo4j using environment variables.
+   - create_or_get_evaluation_for_category(): ensures an Evaluation object exists for a condition.
+   - load_or_generate_bn_json(): retrieves or regenerates BN JSON from LLM.
+
+4. Bayesian Network Construction:
+   - build_bn_for_evaluation_no_evidence(): generates Bayesian Network from Neo4j triples,
+     runs LLM to produce structure or CPDs, saves results, and visualizes the network.
+   - update_cpd_in_full_json(): updates Bayesian Network JSON with edited CPDs.
+
+5. CPT Editing (Streamlit UI):
+   - display_cpds_dropdown(): lets users interactively edit CPDs (Noisy-OR or Tabular Cases)
+     with sliders/inputs and preview updated probabilities.
+
+6. Admin Views:
+   - admin_view(): main admin panel — allows category selection, text/URL extraction,
+     triple upload to Neo4j, BN creation, and CPD editing.
+   - render_evaluation_panel(): shows details for a selected evaluation,
+     displays the Bayesian Network graph, and enables CPT updates.
+
+7. Category Inference:
+   - infer_category(), infer_category_from_url(), extract_title_from_html(),
+     clean_category(): heuristics to guess clean category names from user input,
+     URLs, or HTML titles.
+
+Purpose: Provides admins/experts with the ability to extract structured knowledge
+from clinical content, organize data Neo4j, and build/edit Bayesian Networks
+to support medical inference and decision-making.
+"""
+
 import json
 import os
 from datetime import datetime
@@ -8,56 +53,11 @@ from open_ai_connector import extract_triples, generate_bn_structure_and_probabi
 from baysian import BayesianNetworkBuilder
 from db.database import SessionLocal
 from web_scraper import scrape_page
-import re
 from contextlib import contextmanager
 from bs4 import BeautifulSoup
 
-# This module implements the **Admin Panel** of the Medical Inference App, providing
-# workflows to extract knowledge from clinical/medical text/URLs, save the results as triple it in Neo4j, and
-# construct Bayesian Networks (BNs) for medical inference.
-#
-# Key features:
-# 1. Role Enforcement:
-#    - require_admin_role():  access to admin role only views.
-#
-# 2. Triple processing helpers:
-#    - lc_triples(): lowercases triples for consistency.
-#    - _noisy_or_prob(): calculates noisy-OR probabilities for CPDs.
-#    - _stable_ns(): generates unique, stable widget keys for Streamlit forms.
-#    - _is_noisy_or(): checks if a CPD uses a noisy-OR model or not.
-#
-# 3. Neo4j and DB Integration:
-#    - get_conn(): connects to Neo4j using environment variables.
-#    - create_or_get_evaluation_for_category(): ensures an Evaluation object exists for a condition.
-#    - load_or_generate_bn_json(): retrieves or regenerates BN JSON from LLM.
-#
-# 4. Bayesian Network Construction:
-#    - build_bn_for_evaluation_no_evidence(): generates Bayesian Network from Neo4j triples,
-#      runs LLM to produce structure or CPDs, saves results, and visualizes the network.
-#    - update_cpd_in_full_json(): updates Bayesian Network JSON with edited CPDs.
-#
-# 5. CPT Editing (Streamlit UI):
-#    - display_cpds_dropdown(): lets users interactively edit CPDs (Noisy-OR or Tabular Cases)
-#      with sliders/inputs and preview updated probabilities.
-#
-# 6. Admin Views:
-#    - admin_view(): main admin panel — allows category selection, text/URL extraction,
-#      triple upload to Neo4j, BN creation, and CPD editing.
-#    - render_evaluation_panel(): shows details for a selected evaluation,
-#      displays the Bayesian Network graph, and enables CPT updates.
-#
-# 7. Category Inference:
-#    - infer_category(), infer_category_from_url(), extract_title_from_html(),
-#      clean_category(): heuristics to guess clean category names from user input,
-#      URLs, or HTML titles.
-#
-# Purpose: Provides admins/experts with the ability to extract structured knowledge
-# from clinical content, organize data Neo4j, and build/edit Bayesian Networks
-# to support medical inference and decision-making.
-
-
-
 db = SessionLocal()
+
 
 def require_admin_role():
     user = st.session_state.get('user')

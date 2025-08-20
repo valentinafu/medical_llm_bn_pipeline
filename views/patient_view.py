@@ -1,3 +1,32 @@
+""""
+This module implements the **Patient View** of the Medical Inference App.
+It provides an interactive Streamlit interface where patients can report their symptoms,
+receive probabilistic health assessments from them, and view their assessment history.
+Purpose : Provides patients with an AI-assisted tool for symptom-based health assessments,
+         backed by Bayesian Networks stored in Neo4j and SQLAlchemy.
+Key features:
+1. Evaluation Management:
+   - _get_or_create_eval_for_category(): Ensures an Evaluation object exists for a patient condition.
+   - get_bn_json_for_category(): Retrieves stored Bayesian Network JSON (if available).
+   - run_analysis(): Runs Bayesian inference for a condition using patient's symptoms ,
+     updates the Evaluation, and displays results.
+
+2. Database & Neo4j Connectivity:
+   - get_connection(): Connects to Neo4j (via Neo4jUploader).
+   - load_categories(): Fetches available categories/conditions from Neo4j.
+   - load_symptoms_for_category(): Retrieves symptoms related to selected category.
+
+3. User Interface:
+   - patient_view(): Main entrypoint for patients.
+        * Tab 1: "New Assessment", lets users select a condition, answer symptom questions,
+          and generates a Bayesian inference-based assessment.
+        * Tab 2: "History" shows past assessments with predictions and reported symptoms.
+   - display_assesment_results(): Displays probabilities in human friendly form (low, moderate, high likelihood).
+   - show_patient_history(): Lists up to 10 most recent assessments for the patient.
+
+4. Utilities:
+   - clean normalization helper `_norm()` for string processing.
+"""
 import json
 import os
 from datetime import datetime
@@ -10,36 +39,6 @@ from db.database import SessionLocal
 from models.models import Evaluation
 from neo4jUploader import Neo4jUploader
 from baysian import BayesianNetworkBuilder
-
-# This module implements the **Patient View** of the Medical Inference App.
-# It provides an interactive Streamlit interface where patients can report their symptoms,
-# receive probabilistic health assessments from them, and view their assessment history.
-# Purpose : Provides patients with an AI-assisted tool for symptom-based health assessments,
-#          backed by Bayesian Networks stored in Neo4j and SQLAlchemy.
-# Key features:
-# 1. Evaluation Management:
-#    - _get_or_create_eval_for_category(): Ensures an Evaluation object exists for a patient condition.
-#    - get_bn_json_for_category(): Retrieves stored Bayesian Network JSON (if available).
-#    - run_analysis(): Runs Bayesian inference for a condition using patient's symptoms ,
-#      updates the Evaluation, and displays results.
-#
-# 2. Database & Neo4j Connectivity:
-#    - get_connection(): Connects to Neo4j (via Neo4jUploader).
-#    - load_categories(): Fetches available categories/conditions from Neo4j.
-#    - load_symptoms_for_category(): Retrieves symptoms related to selected category.
-#
-# 3. User Interface:
-#    - patient_view(): Main entrypoint for patients.
-#         * Tab 1: "New Assessment", lets users select a condition, answer symptom questions,
-#           and generates a Bayesian inference-based assessment.
-#         * Tab 2: "History" shows past assessments with predictions and reported symptoms.
-#    - display_assesment_results(): Displays probabilities in human friendly form (low, moderate, high likelihood).
-#    - show_patient_history(): Lists up to 10 most recent assessments for the patient.
-#
-# 4. Utilities:
-#    - clean normalization helper `_norm()` for string processing.
-
-
 # load environment variables
 load_dotenv()
 uri = os.getenv("NEO4J_URI")

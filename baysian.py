@@ -1,8 +1,50 @@
+"""
+This module defines the `BayesianNetworkBuilder` class and helper functions for
+building, validating, and running inference on Bayesian Networks from
+clinical knowledge graphs or LLM generated JSON responses.
+
+Key features:
+1. Node and text handling:
+   - Canonicalizes and normalizes node names for consistent graph building.
+   - Maps aliases and raw text to display-safe node labels.
+
+2. Parsing and cleaning:
+   - clean_response(response): Safely parses and cleans JSON-like responses from LLMs.
+   - Handles formatting quirks (e.g., code fences, trailing commas).
+
+3. Model construction:
+   - from_llm_response(llm_output): Builds a Bayesian Network structure directly from JSON containing
+     nodes, edges, and CPDs (including both tabular and Noisy-OR CPDs).
+   - build_structure_normal(triples): Builds Bayesian Network structure directly from causal triples.
+   - Automatically adds priors for nodes without CPDs.
+
+4. Probability calculations:
+   - build_tabular_cpd_from_definition_full(): Converts structured probability
+     definitions into `pgmpy` TabularCPD objects.
+   - generate_noisy_or_cpd(): Constructs Noisy-OR CPDs from parent weights.
+   - self_sync_model_parents_with_cpd(): Aligns Bayesian Network graph edges with CPD parents.
+
+5. Evidence and inference:
+   - filter_evidence_to_available_nodes(): Filters evidence to valid model nodes.
+   - enforce_absent_present(): Enforces that evidence values to be only 'present' or 'absent'.
+   - infer_with_evidence_filtering(): Runs probabilistic inference with audited evidence
+     using variable elimination, returning posterior probabilities and audit info.
+
+6. Visualization:
+   - visualize(): Plots the Bayesian Network using `networkx` + `matplotlib` with
+     selectable layouts (spring, shell, circular, kamada).
+   - safe_figsize(): Dynamically adjusts figure size based on node count.
+
+Purpose: Provides a pipeline to transform extracted triples or LLM outputs
+         into a functional Bayesian Network that supports inference,
+         visualization, and integration into clinical decision support systems.
+"""
+
 import json
 import math
 import re
 import unicodedata
-from typing import Dict, List, Tuple,Set, Optional, Any
+from typing import Dict, List, Tuple, Set, Optional, Any
 from itertools import product
 
 import numpy as np
@@ -13,45 +55,7 @@ import streamlit as st
 from pgmpy.models import BayesianNetwork
 from pgmpy.factors.discrete import TabularCPD
 from pgmpy.inference import VariableElimination
-# This module defines the `BayesianNetworkBuilder` class and helper functions for
-# building, validating, and running inference on Bayesian Networks from
-# clinical knowledge graphs or LLM generated JSON responses.
-#
-# Key features:
-# 1. Node and text handling:
-#    - Canonicalizes and normalizes node names for consistent graph building.
-#    - Maps aliases and raw text to display-safe node labels.
-#
-# 2. Parsing and cleaning:
-#    - clean_response(response): Safely parses and cleans JSON-like responses from LLMs.
-#    - Handles formatting quirks (e.g., code fences, trailing commas).
-#
-# 3. Model construction:
-#    - from_llm_response(llm_output): Builds a Bayesian Network structure directly from JSON containing
-#      nodes, edges, and CPDs (including both tabular and Noisy-OR CPDs).
-#    - build_structure_normal(triples): Builds Bayesian Network structure directly from causal triples.
-#    - Automatically adds priors for nodes without CPDs.
-#
-# 4. Probability calculations:
-#    - build_tabular_cpd_from_definition_full(): Converts structured probability
-#      definitions into `pgmpy` TabularCPD objects.
-#    - generate_noisy_or_cpd(): Constructs Noisy-OR CPDs from parent weights.
-#    - self_sync_model_parents_with_cpd(): Aligns Bayesian Network graph edges with CPD parents.
-#
-# 5. Evidence and inference:
-#    - filter_evidence_to_available_nodes(): Filters evidence to valid model nodes.
-#    - enforce_absent_present(): Enforces that evidence values to be only 'present' or 'absent'.
-#    - infer_with_evidence_filtering(): Runs probabilistic inference with audited evidence
-#      using variable elimination, returning posterior probabilities and audit info.
-#
-# 6. Visualization:
-#    - visualize(): Plots the Bayesian Network using `networkx` + `matplotlib` with
-#      selectable layouts (spring, shell, circular, kamada).
-#    - safe_figsize(): Dynamically adjusts figure size based on node count.
-#
-# Purpose: Provides a pipeline to transform extracted triples or LLM outputs
-#          into a functional Bayesian Network that supports inference,
-#          visualization, and integration into clinical decision support systems.
+
 
 class BayesianNetworkBuilder:
     def __init__(self, causal_relations=None):
@@ -59,7 +63,6 @@ class BayesianNetworkBuilder:
         self.causal_relations = causal_relations or {"CAUSES", "CAN_LEAD_TO", "INCLUDES"}
         self.node_aliases: Dict[str, str] = {}
         self._canon: Dict[str, str] = {}
-
 
     def canon_key(self, s: str) -> str:
 
@@ -359,9 +362,9 @@ class BayesianNetworkBuilder:
         return cleaned
 
     def infer_with_evidence_filtering(
-        self,
-        query_variable: str,
-        evidence: Optional[Dict[str, Any]] = None
+            self,
+            query_variable: str,
+            evidence: Optional[Dict[str, Any]] = None
     ) -> Tuple[Dict[str, float], Dict[str, Any]]:
         if not self.model.check_model():
             raise ValueError("Model is invalid. Check CPDs and structure.")
@@ -376,7 +379,8 @@ class BayesianNetworkBuilder:
         for var, val in strict_evidence.items():
             cpd = self.model.get_cpds(var)
             if not cpd:
-                ignored_by_audit.append(var); continue
+                ignored_by_audit.append(var);
+                continue
             states = list(cpd.state_names.get(var, []))
             state_map = {s.lower(): s for s in states}
             vv = val.lower()
@@ -437,13 +441,13 @@ class BayesianNetworkBuilder:
             pos = nx.shell_layout(graph)
 
         fs = safe_figsize(figsize, len(list(self.model.nodes())))
-        fig, ax = plt.subplots(figsize= fs)
+        fig, ax = plt.subplots(figsize=fs)
         nx.draw(
             graph, pos, with_labels=True,
             node_color="lightcoral", node_size=1000,
             font_size=8, font_weight="bold", edge_color="gray", ax=ax
         )
-        ax.set_title("Bayesian Network Structure for "+ target_node)
+        ax.set_title("Bayesian Network Structure for " + target_node)
         return fig
 
     def _as_str(self, x) -> str:
@@ -452,6 +456,7 @@ class BayesianNetworkBuilder:
         if isinstance(x, (list, tuple)):
             return " ".join(map(str, x)).strip()
         return str(x).strip()
+
 
 def build_tabular_cpd_from_definition_full(cpd_def: dict) -> TabularCPD:
     node = cpd_def["node"]
@@ -486,6 +491,7 @@ def build_tabular_cpd_from_definition_full(cpd_def: dict) -> TabularCPD:
         state_names={node: ["absent", "present"], **{p: ["absent", "present"] for p in given}}
     )
 
+
 def generate_noisy_or_cpd(node: str, parents: List[str], weights: Dict[str, float], base_prob: float = 0.01
                           ) -> TabularCPD:
     present_probs, absent_probs = [], []
@@ -519,6 +525,7 @@ def self_sync_model_parents_with_cpd(model: BayesianNetwork, cpd: TabularCPD) ->
         if p not in cpd_parents:
             model.remove_edge(p, node)
 
+
 def safe_figsize(figsize, n_nodes: int) -> tuple[float, float]:
     if n_nodes is None:
         n_nodes = 0
@@ -538,9 +545,3 @@ def safe_figsize(figsize, n_nodes: int) -> tuple[float, float]:
         return (w, h)
     except Exception:
         return default
-
-
-
-
-
-
