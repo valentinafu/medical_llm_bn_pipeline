@@ -11,6 +11,35 @@ from models.models import Evaluation
 from neo4jUploader import Neo4jUploader
 from baysian import BayesianNetworkBuilder
 
+# This module implements the **Patient View** of the Medical Inference App.
+# It provides an interactive Streamlit interface where patients can report their symptoms,
+# receive probabilistic health assessments from them, and view their assessment history.
+# Purpose : Provides patients with an AI-assisted tool for symptom-based health assessments,
+#          backed by Bayesian Networks stored in Neo4j and SQLAlchemy.
+# Key features:
+# 1. Evaluation Management:
+#    - _get_or_create_eval_for_category(): Ensures an Evaluation object exists for a patient condition.
+#    - get_bn_json_for_category(): Retrieves stored Bayesian Network JSON (if available).
+#    - run_analysis(): Runs Bayesian inference for a condition using patient's symptoms ,
+#      updates the Evaluation, and displays results.
+#
+# 2. Database & Neo4j Connectivity:
+#    - get_connection(): Connects to Neo4j (via Neo4jUploader).
+#    - load_categories(): Fetches available categories/conditions from Neo4j.
+#    - load_symptoms_for_category(): Retrieves symptoms related to selected category.
+#
+# 3. User Interface:
+#    - patient_view(): Main entrypoint for patients.
+#         * Tab 1: "New Assessment", lets users select a condition, answer symptom questions,
+#           and generates a Bayesian inference-based assessment.
+#         * Tab 2: "History" shows past assessments with predictions and reported symptoms.
+#    - display_assesment_results(): Displays probabilities in human friendly form (low, moderate, high likelihood).
+#    - show_patient_history(): Lists up to 10 most recent assessments for the patient.
+#
+# 4. Utilities:
+#    - clean normalization helper `_norm()` for string processing.
+
+
 # load environment variables
 load_dotenv()
 uri = os.getenv("NEO4J_URI")
@@ -70,7 +99,7 @@ def get_bn_json_for_category(db, category: str) -> Optional[dict]:
 
 
 @st.cache_resource
-#Connection with Neo4J
+# Connection with Neo4J
 def get_connection():
     try:
         return Neo4jUploader(uri=uri, user=user, password=password)
@@ -98,6 +127,7 @@ def load_symptoms_for_category(conn, category: str) -> List[str]:
     except Exception as e:
         st.error(f"Failed to load symptoms for {category}: {e}")
         return []
+
 
 def display_assesment_results(probabilities: Dict[str, float]) -> bool:
     if not probabilities:
@@ -129,6 +159,7 @@ def display_assesment_results(probabilities: Dict[str, float]) -> bool:
 
     return show_treatment_suggestions
 
+
 def run_analysis(db, user_id: int, category: str, symptoms: Dict[str, int]):
     try:
         evaluation = _get_or_create_eval_for_category(db, user_id, category, symptoms)
@@ -153,6 +184,7 @@ def run_analysis(db, user_id: int, category: str, symptoms: Dict[str, int]):
             st.exception(e)
         return None, None
 
+
 def show_patient_history(user_id: int):
     st.markdown("### Your Assessment History")
 
@@ -175,7 +207,7 @@ def show_patient_history(user_id: int):
                 if eval.prediction:
                     try:
                         pred_data = json.loads(eval.prediction)
-                        for state, prob in  pred_data.items():
+                        for state, prob in pred_data.items():
                             percentage = round(prob * 100, 1)
                             if state.lower() == "present":
                                 if percentage > 70:
@@ -201,6 +233,7 @@ def show_patient_history(user_id: int):
     finally:
         db.close()
 
+
 def patient_view():
     st.title("Health Assessment Tool")
     user = st.session_state.get('user')
@@ -209,7 +242,7 @@ def patient_view():
         st.error("Please log in to continue.")
         return
 
-    st.markdown(f"## Welcome, {user.name}! 👋")
+    st.markdown(f"## Welcome, {user.name}!")
 
     tab1, tab2 = st.tabs(["New Assessment", "History"])
 
@@ -246,7 +279,6 @@ def patient_view():
 
         with st.form("assessment_form"):
             for symptom in graph_symptoms:
-
                 display_name = symptom.replace('_', ' ').replace('-', ' ').title()
 
                 answer = st.radio(
@@ -285,10 +317,11 @@ def patient_view():
     with tab2:
         show_patient_history(user_id)
 
+
 import unicodedata, re
+
 
 def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKC", s)
     s = s.replace("’", "'").strip()
     return s.casefold()
-

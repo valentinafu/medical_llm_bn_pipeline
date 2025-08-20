@@ -13,6 +13,45 @@ import streamlit as st
 from pgmpy.models import BayesianNetwork
 from pgmpy.factors.discrete import TabularCPD
 from pgmpy.inference import VariableElimination
+# This module defines the `BayesianNetworkBuilder` class and helper functions for
+# building, validating, and running inference on Bayesian Networks from
+# clinical knowledge graphs or LLM generated JSON responses.
+#
+# Key features:
+# 1. Node and text handling:
+#    - Canonicalizes and normalizes node names for consistent graph building.
+#    - Maps aliases and raw text to display-safe node labels.
+#
+# 2. Parsing and cleaning:
+#    - clean_response(response): Safely parses and cleans JSON-like responses from LLMs.
+#    - Handles formatting quirks (e.g., code fences, trailing commas).
+#
+# 3. Model construction:
+#    - from_llm_response(llm_output): Builds a Bayesian Network structure directly from JSON containing
+#      nodes, edges, and CPDs (including both tabular and Noisy-OR CPDs).
+#    - build_structure_normal(triples): Builds Bayesian Network structure directly from causal triples.
+#    - Automatically adds priors for nodes without CPDs.
+#
+# 4. Probability calculations:
+#    - build_tabular_cpd_from_definition_full(): Converts structured probability
+#      definitions into `pgmpy` TabularCPD objects.
+#    - generate_noisy_or_cpd(): Constructs Noisy-OR CPDs from parent weights.
+#    - self_sync_model_parents_with_cpd(): Aligns Bayesian Network graph edges with CPD parents.
+#
+# 5. Evidence and inference:
+#    - filter_evidence_to_available_nodes(): Filters evidence to valid model nodes.
+#    - enforce_absent_present(): Enforces that evidence values to be only 'present' or 'absent'.
+#    - infer_with_evidence_filtering(): Runs probabilistic inference with audited evidence
+#      using variable elimination, returning posterior probabilities and audit info.
+#
+# 6. Visualization:
+#    - visualize(): Plots the Bayesian Network using `networkx` + `matplotlib` with
+#      selectable layouts (spring, shell, circular, kamada).
+#    - safe_figsize(): Dynamically adjusts figure size based on node count.
+#
+# Purpose: Provides a pipeline to transform extracted triples or LLM outputs
+#          into a functional Bayesian Network that supports inference,
+#          visualization, and integration into clinical decision support systems.
 
 class BayesianNetworkBuilder:
     def __init__(self, causal_relations=None):

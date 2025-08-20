@@ -1,12 +1,7 @@
-import hashlib
 import json
 import os
 from datetime import datetime
-
-import pandas as pd
-import streamlit as st
 from dotenv import load_dotenv
-
 from models.models import Evaluation, User
 from neo4jUploader import Neo4jUploader
 from open_ai_connector import extract_triples, generate_bn_structure_and_probabilities_from_llm
@@ -17,8 +12,52 @@ import re
 from contextlib import contextmanager
 from bs4 import BeautifulSoup
 
-db = SessionLocal()
+# This module implements the **Admin Panel** of the Medical Inference App, providing
+# workflows to extract knowledge from clinical/medical text/URLs, save the results as triple it in Neo4j, and
+# construct Bayesian Networks (BNs) for medical inference.
+#
+# Key features:
+# 1. Role Enforcement:
+#    - require_admin_role():  access to admin role only views.
+#
+# 2. Triple processing helpers:
+#    - lc_triples(): lowercases triples for consistency.
+#    - _noisy_or_prob(): calculates noisy-OR probabilities for CPDs.
+#    - _stable_ns(): generates unique, stable widget keys for Streamlit forms.
+#    - _is_noisy_or(): checks if a CPD uses a noisy-OR model or not.
+#
+# 3. Neo4j and DB Integration:
+#    - get_conn(): connects to Neo4j using environment variables.
+#    - create_or_get_evaluation_for_category(): ensures an Evaluation object exists for a condition.
+#    - load_or_generate_bn_json(): retrieves or regenerates BN JSON from LLM.
+#
+# 4. Bayesian Network Construction:
+#    - build_bn_for_evaluation_no_evidence(): generates Bayesian Network from Neo4j triples,
+#      runs LLM to produce structure or CPDs, saves results, and visualizes the network.
+#    - update_cpd_in_full_json(): updates Bayesian Network JSON with edited CPDs.
+#
+# 5. CPT Editing (Streamlit UI):
+#    - display_cpds_dropdown(): lets users interactively edit CPDs (Noisy-OR or Tabular Cases)
+#      with sliders/inputs and preview updated probabilities.
+#
+# 6. Admin Views:
+#    - admin_view(): main admin panel — allows category selection, text/URL extraction,
+#      triple upload to Neo4j, BN creation, and CPD editing.
+#    - render_evaluation_panel(): shows details for a selected evaluation,
+#      displays the Bayesian Network graph, and enables CPT updates.
+#
+# 7. Category Inference:
+#    - infer_category(), infer_category_from_url(), extract_title_from_html(),
+#      clean_category(): heuristics to guess clean category names from user input,
+#      URLs, or HTML titles.
+#
+# Purpose: Provides admins/experts with the ability to extract structured knowledge
+# from clinical content, organize data Neo4j, and build/edit Bayesian Networks
+# to support medical inference and decision-making.
 
+
+
+db = SessionLocal()
 
 def require_admin_role():
     user = st.session_state.get('user')
@@ -82,6 +121,7 @@ def _set_saved_llm_json(evaluation: Evaluation, response_dict: dict):
     else:
         evaluation.llm_response = payload
 
+
 def create_or_get_evaluation_for_category(db, category: str) -> Evaluation:
     ev = (
         db.query(Evaluation)
@@ -100,6 +140,7 @@ def create_or_get_evaluation_for_category(db, category: str) -> Evaluation:
         db.commit()
         db.refresh(ev)
     return ev
+
 
 def build_bn_for_evaluation_no_evidence(evaluation: Evaluation):
     conn = get_conn()
@@ -150,12 +191,12 @@ def build_bn_for_evaluation_no_evidence(evaluation: Evaluation):
             db.add(evaluation)
             db.commit()
 
-            # Visualize the BN
-            fig = builder.visualize(target_node= category)
+            # visualization of the BN
+            fig = builder.visualize(target_node=category)
             st.pyplot(fig)
             st.success("Bayesian network created and evaluation updated.")
 
-            # CPT Editor
+            # Handle CPT cases
             st.markdown("## Edit Conditional Probability Tables")
             if not st.session_state["cpds"]:
                 st.info("No CPDs found to edit.")
@@ -198,7 +239,7 @@ def build_bn_for_evaluation_no_evidence(evaluation: Evaluation):
         db.close()
 
 
-#"Display categories/condition that we can create Bayesian Network
+# "Display categories/condition that we can create Bayesian Network
 def _render_category_actions():
     st.subheader("Categories")
     try:
@@ -230,21 +271,22 @@ import re, hashlib
 import pandas as pd
 import streamlit as st
 
+
 def _uniq_key(prefix: str, *parts) -> str:
-    """Short readable key with an 8-char hash to prevent collisions."""
     txt = "|".join(str(p) for p in parts if p is not None)
     h = hashlib.md5(txt.encode("utf-8")).hexdigest()[:8]
-    # keep a tiny readable head (<=60 chars)
     head = re.sub(r"[^0-9a-zA-Z_]+", "_", f"{prefix}_{parts[0] if parts else ''}")[:60]
     return f"{head}__{h}"
 
+
 def display_cpds_dropdown(
-    cpds,
-    button_label: str = "🔁 Update and Recalculate Inference",
-    key_prefix: str = "cpd_panel"
+        cpds,
+        button_label: str = "🔁 Update and Recalculate Inference",
+        key_prefix: str = "cpd_panel"
 ):
     # helper that always appends a unique hash
-    def K(*parts): return _uniq_key(key_prefix, *parts)
+    def K(*parts):
+        return _uniq_key(key_prefix, *parts)
 
     st.title("Explore and edit Conditional Probability Tables (CPTs)")
 
@@ -260,10 +302,10 @@ def display_cpds_dropdown(
     st.markdown(f"# Node: `{selected_node}`")
     st.markdown(f"**Given (parents):** {', '.join(given) if given else 'None (prior)'}")
 
-    # stable namespace for the selected node (use full text for hashing, not truncated)
+    # stable namespace for the selected node
     ns = (selected_node, tuple(given), "cpd")
 
-    # --- NOISY-OR ---
+    # --- Handle noisy OR cases ---
     if _is_noisy_or(cpd):
         weights = cpd.get("noisy_or_weights", {}) or {}
         for p in given:
@@ -295,7 +337,7 @@ def display_cpds_dropdown(
         run_update = st.button(button_label, key=K("recalc_noisyor", ns))
         return cpd, run_update
 
-    # --- TABULAR ---
+    # --- Handle tabular cases  ---
     probs = cpd["probabilities"]
     condition_order = cpd.get("condition_order")
     if isinstance(probs.get("present"), list) and not condition_order:
@@ -304,12 +346,11 @@ def display_cpds_dropdown(
     updated_present, updated_absent = [], []
 
     if isinstance(probs.get("present"), list):
-        # conditional rows
         for i, condition in enumerate(condition_order):
             with st.expander(
-                f"Condition {i + 1}: {condition}",
-                expanded=False,
-                key=K("expander", ns, i)
+                    f"Condition {i + 1}: {condition}",
+                    expanded=False,
+                    key=K("expander", ns, i)
             ):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -339,272 +380,28 @@ def display_cpds_dropdown(
         col2.markdown(f"**P(Absent):** `{absent}`")
         updated_present, updated_absent = present, absent
 
-    # write updates
+    # update values
     cpd["probabilities"]["present"] = updated_present
-    cpd["probabilities"]["absent"]  = updated_absent
+    cpd["probabilities"]["absent"] = updated_absent
 
-    # preview
+    # preview new values
     st.markdown("### Updated CPT Preview")
     if isinstance(updated_present, list):
         rows = []
         for i, condition in enumerate(condition_order):
             row = {**condition}
             row["P(Present)"] = round(updated_present[i], 6)
-            row["P(Absent)"]  = round(updated_absent[i], 6)
+            row["P(Absent)"] = round(updated_absent[i], 6)
             rows.append(row)
         st.dataframe(pd.DataFrame(rows), use_container_width=True)
     else:
         st.dataframe(pd.DataFrame([{
             "P(Present)": round(updated_present, 6),
-            "P(Absent)":  round(updated_absent, 6)
+            "P(Absent)": round(updated_absent, 6)
         }]), use_container_width=True)
 
     run_update = st.button(button_label, key=K("recalc_tabular", ns))
     return cpd, run_update
-
-# def display_cpds_dropdown(cpds, button_label: str = "🔁 Update and Recalculate Inference", key_prefix: str = "cpd_panel"):
-#     def skey(*parts) -> str:
-#         raw = "_".join(str(p) for p in parts if p is not None)
-#         return re.sub(r"[^0-9a-zA-Z_]", "_", raw)[:200]
-#
-#     # key builder that always includes a stable panel prefix
-#     def _k(*parts):
-#         return skey(key_prefix, *parts)
-#
-#     st.title("Explore and edit Conditional Probability Tables (CPTs)")
-#
-#     node_names = [cpd["node"] for cpd in cpds]
-#
-#     # IMPORTANT: make the selector key unique to this panel, not to the node
-#     selected_node = st.selectbox(
-#         "Select a node to edit its CPT",
-#         node_names,
-#         key=_k("node_selector")
-#     )
-#
-#     cpd = next(c for c in cpds if c["node"] == selected_node)
-#     given = cpd.get("given", []) or []
-#     st.markdown(f"# Node: `{selected_node}`")
-#     st.markdown(f"**Given (parents):** {', '.join(given) if given else 'None (prior)'}")
-#
-#     # stable namespace for all node-specific widgets in this panel
-#     ns = skey(selected_node, *given, "cpd")
-#
-#     # --- NOISY-OR CASE ---
-#     if _is_noisy_or(cpd):
-#         weights = cpd.get("noisy_or_weights", {}) or {}
-#         for p in given:
-#             weights.setdefault(p, 0.1)
-#         leak = float(cpd.get("leak", 0.0))
-#
-#         cols = st.columns(2)
-#         with cols[0]:
-#             leak = st.number_input(
-#                 "Leak (baseline P(child=present) with no parents present)",
-#                 min_value=0.0, max_value=1.0, step=0.001, value=leak,
-#                 key=_k("leak", ns)
-#             )
-#
-#         st.markdown("#### Parent Weights")
-#         for i, parent in enumerate(given):
-#             w_default = float(weights.get(parent, 0.1))
-#             w = st.slider(
-#                 f"{parent}",
-#                 min_value=0.0, max_value=1.0, step=0.01,
-#                 value=w_default,
-#                 key=_k("w", ns, i)
-#             )
-#             weights[parent] = float(w)
-#
-#         cpd["noisy_or_weights"] = weights
-#         cpd["leak"] = float(leak)
-#
-#         run_update = st.button(button_label, key=_k("recalc_noisyor", ns))
-#         return cpd, run_update
-#
-#     # --- TABULAR CPT (PRIOR / CONDITIONAL) ---
-#     probs = cpd["probabilities"]
-#     condition_order = cpd.get("condition_order")
-#     if isinstance(probs.get("present"), list) and not condition_order:
-#         condition_order = [{} for _ in range(len(probs["present"]))]
-#
-#     updated_present = []
-#     updated_absent = []
-#
-#     if isinstance(probs.get("present"), list):
-#         # conditional case
-#         for i, condition in enumerate(condition_order):
-#             with st.expander(
-#                 f"Condition {i + 1}: {condition}",
-#                 expanded=False,
-#                 key=_k("exp", ns, i)
-#             ):
-#                 col1, col2 = st.columns(2)
-#                 with col1:
-#                     default_present = float(probs["present"][i]) if i < len(probs["present"]) else 0.5
-#                     present = st.number_input(
-#                         f"P(Present) | {condition}",
-#                         min_value=0.0, max_value=1.0, step=0.01,
-#                         value=default_present,
-#                         key=_k("present", ns, i)
-#                     )
-#                 absent = round(1.0 - present, 6)
-#                 col2.markdown(f"**P(Absent) | {condition}:** `{absent}`")
-#                 updated_present.append(present)
-#                 updated_absent.append(absent)
-#     else:
-#         # prior case
-#         st.markdown("### Edit Prior Probabilities")
-#         col1, col2 = st.columns(2)
-#         with col1:
-#             present = st.number_input(
-#                 "P(Present)",
-#                 min_value=0.0, max_value=1.0, step=0.01,
-#                 value=float(probs.get("present", 0.5)),
-#                 key=_k("prior_present", ns)
-#             )
-#         absent = round(1.0 - present, 6)
-#         col2.markdown(f"**P(Absent):** `{absent}`")
-#         updated_present, updated_absent = present, absent
-#
-#     # write updates for tabular case
-#     cpd["probabilities"]["present"] = updated_present
-#     cpd["probabilities"]["absent"] = updated_absent
-#
-#     # preview
-#     st.markdown("### Updated CPT Preview")
-#     if isinstance(updated_present, list):
-#         rows = []
-#         for i, condition in enumerate(condition_order):
-#             row = {**condition}
-#             row["P(Present)"] = round(updated_present[i], 6)
-#             row["P(Absent)"] = round(updated_absent[i], 6)
-#             rows.append(row)
-#         st.dataframe(pd.DataFrame(rows), use_container_width=True)
-#     else:
-#         st.dataframe(pd.DataFrame([{
-#             "P(Present)": round(updated_present, 6),
-#             "P(Absent)": round(updated_absent, 6)
-#         }]), use_container_width=True)
-#
-#     run_update = st.button(button_label, key=_k("recalc_tabular", ns))
-#     return cpd, run_update
-
-#  # Dropdown with all probability values
-# def display_cpds_dropdown(cpds, button_label: str = "🔁 Update and Recalculate Inference", key_prefix=""):
-#
-#     def _k(s):
-#         return f"{key_prefix}__{s}" if key_prefix else s
-#
-#     st.title("Explore and edit Conditional Probability Tables (CPTs)")
-#
-#     node_names = [cpd["node"] for cpd in cpds]
-#     selected_node = st.selectbox(
-#         "Select a node to edit its CPT",
-#         node_names,
-#         key=_k("node_selector")
-#     )
-#
-#     cpd = next(c for c in cpds if c["node"] == selected_node)
-#     given = cpd.get("given", []) or []
-#     st.markdown(f"# Node: `{selected_node}`")
-#     st.markdown(f"**Given (parents):** {', '.join(given) if given else 'None (prior)'}")
-#
-#     ns = _stable_ns(selected_node, given, tag="cpd")
-#
-#     # --- HANDLES NOISY-OR CASES ---
-#     if _is_noisy_or(cpd):
-#         weights = cpd.get("noisy_or_weights", {})
-#         for p in given:
-#             weights.setdefault(p, 0.1)
-#         leak = float(cpd.get("leak", 0.0))
-#
-#         cols = st.columns(2)
-#         with cols[0]:
-#             leak = st.number_input(
-#                 "Leak (baseline P(child=present) with no parents present)",
-#                 min_value=0.0, max_value=1.0, step=0.001, value=leak, key=_k(f"leak__{ns}")
-#             )
-#
-#         st.markdown("#### Parent Weights")
-#         for i, parent in enumerate(given):
-#             w_default = float(weights.get(parent, 0.1))
-#             w = st.slider(
-#                 f"{parent}",
-#                 min_value=0.0, max_value=1.0, step=0.01,
-#                 value=w_default,
-#                 key=_k(f"w__{ns}__{i}")
-#             )
-#             weights[parent] = float(w)
-#
-#         cpd["noisy_or_weights"] = weights
-#         cpd["leak"] = float(leak)
-#
-#         run_update = st.button(button_label, key=_k(f"recalc_noisyor__{ns}"))
-#         return cpd, run_update
-#
-#     # ----- Tabular CPT (PRIOR / CONDITIONAL) -----
-#     probs = cpd["probabilities"]
-#     condition_order = cpd.get("condition_order")
-#     if isinstance(probs.get("present"), list) and not condition_order:
-#         condition_order = [{} for _ in range(len(probs["present"]))]
-#
-#     updated_present = []
-#     updated_absent = []
-#
-#     if isinstance(probs.get("present"), list):
-#         # conditional case
-#         for i, condition in enumerate(condition_order):
-#             with st.expander(f"Condition {i + 1}: {condition}", expanded=False, key=f"exp__{ns}__{i}"):
-#                 col1, col2 = st.columns(2)
-#                 with col1:
-#                     default_present = float(probs["present"][i]) if i < len(probs["present"]) else 0.5
-#                     present = st.number_input(
-#                         f"P(Present) | {condition}",
-#                         min_value=0.0, max_value=1.0, step=0.01,
-#                         value=default_present,
-#                         key=f"present__{ns}__{i}"
-#                     )
-#                 absent = round(1.0 - present, 6)
-#                 col2.markdown(f"**P(Absent) | {condition}:** `{absent}`")
-#                 updated_present.append(present)
-#                 updated_absent.append(absent)
-#     else:
-#         # prior case
-#         st.markdown("### Edit Prior Probabilities")
-#         col1, col2 = st.columns(2)
-#         with col1:
-#             present = st.number_input(
-#                 "P(Present)", min_value=0.0, max_value=1.0, step=0.01,
-#                 value=float(probs.get("present", 0.5)),
-#                 key=f"prior_present__{ns}"
-#             )
-#         absent = round(1.0 - present, 6)
-#         col2.markdown(f"**P(Absent):** `{absent}`")
-#         updated_present, updated_absent = present, absent
-#
-#     # write updates for tabular case
-#     cpd["probabilities"]["present"] = updated_present
-#     cpd["probabilities"]["absent"] = updated_absent
-#
-#     # preview immediately in the tables
-#     st.markdown("### Updated CPT Preview")
-#     if isinstance(updated_present, list):
-#         rows = []
-#         for i, condition in enumerate(condition_order):
-#             row = {**condition}
-#             row["P(Present)"] = round(updated_present[i], 6)
-#             row["P(Absent)"] = round(updated_absent[i], 6)
-#             rows.append(row)
-#         st.dataframe(pd.DataFrame(rows), use_container_width=True)
-#     else:
-#         st.dataframe(pd.DataFrame([{
-#             "P(Present)": round(updated_present, 6),
-#             "P(Absent)": round(updated_absent, 6)
-#         }]), use_container_width=True)
-#
-#     run_update = st.button("Update and Recalculate Inference", key=f"recalc_tabular__{ns}")
-#     return cpd, run_update
 
 
 def update_cpd_in_full_json(full_json, updated_cpd):
@@ -639,7 +436,7 @@ def admin_view():
     _render_category_actions()
 
     st.markdown("---")
-    st.subheader("Add the link you want to extract information")
+    st.subheader("Add the link you want to extract medical information")
     colA, colB = st.columns([3, 2])
     with colA:
         category = st.text_input("Category, Condition you are extracting", max_chars=100)
@@ -676,7 +473,7 @@ def admin_view():
 
                     conn.attach_centers_for_page(
                         triples,
-                        category= category,
+                        category=category,
                         attach_all_nodes=False
                     )
                     st.success(f"Uploaded {len(triples)} triples to Neo4j!")
@@ -720,7 +517,7 @@ def render_evaluation_panel(evaluation_id: int):
         builder = BayesianNetworkBuilder().from_llm_response(response)
         builder.build_structure()
         st.markdown("#### Bayesian Network")
-        fig = builder.visualize(target_node= evaluation.category)
+        fig = builder.visualize(target_node=evaluation.category)
         st.pyplot(fig)
 
         # 3) CPT editor
@@ -740,7 +537,7 @@ def render_evaluation_panel(evaluation_id: int):
                     builder = BayesianNetworkBuilder().from_llm_response(full_json_updated)
                     builder.build_structure()
                     st.success("CPT saved. Rebuilding graph…")
-                    fig2 = builder.visualize(target_node= evaluation.category)
+                    fig2 = builder.visualize(target_node=evaluation.category)
                     st.pyplot(fig2)
 
                     st.session_state["cpds"] = full_json_updated.get("cpds", [])
@@ -750,7 +547,8 @@ def render_evaluation_panel(evaluation_id: int):
     finally:
         db.close()
 
-# ---------- helper method ----------
+
+# ---------- helpers methods ----------
 
 def clean_category(raw: str) -> str:
     if not raw:
@@ -789,6 +587,7 @@ def extract_title_from_html(html: str) -> str:
     except Exception:
         return ""
 
+
 def infer_category(category_input: str, url: str | None, html: str | None) -> str:
     # priority: explicit input > <title> > url segment
     if category_input and category_input.strip():
@@ -800,7 +599,7 @@ def infer_category(category_input: str, url: str | None, html: str | None) -> st
         guess = infer_category_from_url(url.strip())
         if guess:
             return guess
-    return ""  # fallback to empty and handle in UI
+    return ""
 
 
 @contextmanager
@@ -816,7 +615,7 @@ def _db() -> SessionLocal:
         db.close()
 
 
-#If there is a selected evaluation, update its category; otherwise create a new one.
+# If there is a selected evaluation, update its category otherwise create a new one.
 def get_or_create_evaluation(user_id: int, category: str, selected_eval=None):
     with _db() as db:
         if selected_eval:
@@ -858,6 +657,7 @@ def load_or_generate_bn_json(db, evaluation, triples, target_node_lc):
     db.commit()
     return response
 
+
 def render_evaluation_panel(evaluation_id: int):
     db = SessionLocal()
     try:
@@ -879,7 +679,7 @@ def render_evaluation_panel(evaluation_id: int):
             st.warning("No triples found for this category.");
             return
 
-        target_node_lc = _lc(evaluation.category) #turn lowercase category
+        target_node_lc = _lc(evaluation.category)  # turn lowercase category
 
         response = load_or_generate_bn_json(db, evaluation, triples, target_node_lc)
 
@@ -887,7 +687,7 @@ def render_evaluation_panel(evaluation_id: int):
         builder = BayesianNetworkBuilder().from_llm_response(response)
         builder.build_structure()
         st.markdown("#### Bayesian Network")
-        fig = builder.visualize(target_node= evaluation.category)
+        fig = builder.visualize(target_node=evaluation.category)
         st.pyplot(fig)
 
         # 3) CPT editor
@@ -907,7 +707,7 @@ def render_evaluation_panel(evaluation_id: int):
                     builder = BayesianNetworkBuilder().from_llm_response(full_json_updated)
                     builder.build_structure()
                     st.success("CPT saved. Rebuilding graph…")
-                    fig2 = builder.visualize(target_node= evaluation.category)
+                    fig2 = builder.visualize(target_node=evaluation.category)
                     st.pyplot(fig2)
 
                     st.session_state["cpds"] = full_json_updated.get("cpds", [])

@@ -1,83 +1,4 @@
-# import streamlit as st
-# from sqlalchemy.orm import Session
-# from db.database import SessionLocal
-# from authenticator.login import login
-# from authenticator.signup import signup
-# from models.models import User
-# from views.admin_view import admin_view
-# from views.patient_view import patient_view
-#
-# def get_db():
-#     db = SessionLocal()
-#     try:
-#         yield db
-#     finally:
-#         db.close()
-#
-# def main():
-#     st.set_page_config(page_title="Medical Inference App", page_icon="🏥")
-#
-#     # Initialize session state
-#     if "page" not in st.session_state:
-#         st.session_state.page = "auth"
-#     feedback = st.empty()  # Placeholder for session debug
-#     feedback.write(f"Debug: Page state = {st.session_state.page}")
-#     feedback.write(f"Debug: Session state keys: {list(st.session_state.keys())}")
-#
-#     # Check session persistence
-#     if "session_marker" in st.session_state:
-#         feedback.write(f"Debug: Session marker found: {st.session_state.session_marker}")
-#     else:
-#         feedback.write("Debug: No session marker - session may have cleared")
-#
-#     # Get database session
-#     db: Session = next(get_db())
-#
-#     # Restore session if user_id exists
-#     if "user_id" in st.session_state and "user" not in st.session_state:
-#         feedback.write(f"Debug: Attempting to restore session for user_id={st.session_state.user_id}")
-#         try:
-#             user = db.query(User).filter_by(id=st.session_state.user_id).first()
-#             if user:
-#                 st.session_state.user = user
-#                 st.session_state.user_email = user.email
-#                 st.session_state.page = "dashboard"
-#                 feedback.write(f"Debug: Session restored, user={user.name}, role={user.role}")
-#             else:
-#                 feedback.write("Debug: No user found for user_id, clearing session")
-#                 st.session_state.clear()
-#                 st.session_state.page = "auth"
-#         except Exception as e:
-#             feedback.error(f"Debug: Database error during restoration: {str(e)}")
-#             st.session_state.clear()
-#             st.session_state.page = "auth"
-#
-#     # Handle authentication or dashboard
-#     if "user" not in st.session_state or st.session_state.page == "auth":
-#         auth_mode = st.radio("Choose action", ["Login", "Sign Up"], key="auth_mode")
-#         feedback.write(f"Debug: Auth mode = {auth_mode}")
-#         if auth_mode == "Login":
-#             login(db)
-#         else:
-#             if signup(db):
-#                 st.session_state.page = "auth"
-#                 st.rerun()
-#     else:
-#         st.success(f"Logged in as {st.session_state.user.name} ({st.session_state.user.role})")
-#         feedback.write(f"Debug: Displaying dashboard for user={st.session_state.user.name}")
-#         if st.button("Logout"):
-#             st.session_state.clear()
-#             st.session_state.page = "auth"
-#             feedback.write("Debug: Logged out")
-#             st.rerun()
-#
-#         if st.session_state.user.role == "patient":
-#             patient_view()
-#         elif st.session_state.user.role == "admin":
-#             admin_view()
-#
-# if __name__ == "__main__":
-#     main()
+
 
 import streamlit as st
 from sqlalchemy.orm import Session
@@ -88,7 +9,31 @@ from models.models import User
 from views.admin_view import admin_view
 from views.patient_view import patient_view
 
-
+# This script is the main entrypoint for the **Medical Inference App** built with Streamlit.
+#
+# Key features:
+# 1. Session Management:
+#    - Initializes and restores Streamlit session state for user authentication.
+#    - Persists user sessions
+#
+# 2. Authentication:
+#    - Provides login and signup forms
+#    - Controls navigation between authentication and dashboard views.
+#
+# 3. Role-Based Dashboards:
+#    - Routes logged in users to different views depending on their role:
+#         * patient → `patient_view()`
+#         * admin   → `admin_view()`
+#
+# 4. Database Integration:
+#    - Connects to the SQLAlchemy `SessionLocal` for persistent user storage.
+#    - Restores user sessions from database if session markers are found.
+#
+# 5. Debugging:
+#    - Optional debug info shown in the sidebar for development.
+#
+# Purpose: Acts as the Streamlit frontend controller for authentication,
+#          session persistence, and navigation in the medical inference system.
 def get_db():
     db = SessionLocal()
     try:

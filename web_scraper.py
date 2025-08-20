@@ -4,6 +4,13 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 
+# This script provides a reliable way to scrape the visible text of a web page,even for sites that require JavaScript rendering:
+# - Uses Selenium with Chrome WebDriver in headless mode to load a given URL.
+# - Extracts the full page html content.
+# - Parses the html with BeautifulSoup to locate the main content area
+# - Returns the text content from the main section of the page.
+# - If scraping fails, it returns an error message.
+
 def scrape_page(url):
     try:
         options = Options()
