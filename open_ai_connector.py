@@ -21,13 +21,12 @@ medical knowledge extraction and Bayesian Network (BN) construction:
 """
 
 from openai import OpenAI
-
 client = OpenAI(
     api_key="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")
 model = "gpt-4.1"
 
 
-# Extract triples that came from test scraping
+#Extract triples that came from test scraping
 def extract_triples(text):
     print("Extracting triples")
     prompt = f"""
@@ -56,7 +55,7 @@ def extract_triples(text):
     return triples
 
 
-# Extract triples that came from test scraping
+#Extract triples that came from test scraping
 def generate_bn_structure_and_probabilities_from_llm(target_condition, causes, symptoms):
     def format_list(name, items):
         return f"- {name}:\n" + "\n".join([f"  - {item}" for item in items])
@@ -151,3 +150,4 @@ def generate_bn_structure_and_probabilities_from_llm(target_condition, causes, s
     )
     content = response.choices[0].message.content if response and response.choices else None
     return content
+
