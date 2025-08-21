@@ -7,16 +7,6 @@ def login(db: Session):
     feedback = st.empty()
     email = st.text_input("Email").strip()
     password = st.text_input("Password", type="password")
-    feedback.write(f"Debug: Email entered: '{email}'")
-    feedback.write(f"Debug: Session state before login: {list(st.session_state.keys())}")
-    try:
-        test_user = db.query(User).filter_by(email="valentinafurxhi@gmail.com").first()
-        feedback.write(f"Debug: Hardcoded query result: {test_user.email if test_user else 'None'}")
-        all_users = db.query(User).all()
-        feedback.write(f"Debug: All users: {[u.email for u in all_users]}")
-    except Exception as e:
-        feedback.error(f"Debug: Database error: {str(e)}")
-
     if st.button("Login"):
         feedback.write("Checking credentials...")
         try:
@@ -34,7 +24,6 @@ def login(db: Session):
                     st.session_state.session_marker = "active"
                     feedback.success(f"Welcome, {user.name}!")
                     feedback.write(f"Debug: Login successful, user_id={user.id}")
-                    feedback.write(f"Debug: Session state after login: {list(st.session_state.keys())}")
                     st.rerun()
                     return True
                 else:
@@ -42,7 +31,7 @@ def login(db: Session):
                     return False
             else:
                 feedback.error("No user found with this email")
-                feedback.write(f"Debug: No user found for email='{email}'")
+                feedback.write(f"Debug:No user found for email='{email}'")
                 return False
         except Exception as e:
             feedback.error(f"Database error: {str(e)}")

@@ -69,19 +69,24 @@ The system supports **patients, experts, and admins** to input symptoms, run pro
 ## Installation
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/valentinafu/medical_llm_bn_pipeline.git
-2.Virtual Invironet
-3.python -m venv venv
-source venv/bin/activate   # Mac/Linux
-venv\Scripts\activate 
-4.pip install requirement.txt
+git clone https://github.com/valentinafu/medical_llm_bn_pipeline.git
+cd medical_llm_bn_pipeline
+2.Create conda env
+conda create -n medical_app python=3.10 -y
+conda activate medical_app
+Install dependencies
+3.pip install requirement.txt
+4.Create .env file with 
+printf "NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your_password
+DATABASE_URL=sqlite:///./app.db
+" > .env
+
 5. Populate .env file with NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_password
 DATABASE_URL=sqlite:///./app.db
 6.streamlit run app.py
 
-2. In zip version just run streamlit run app.py or configure the project to run,python configuration
-
-
+7.Run the code :streamlit run app.py
