@@ -70,8 +70,7 @@ The system supports **patients, experts, and admins** to input symptoms, run pro
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/your-repo-name.git
-   cd your-repo-name
+   git clone https://github.com/valentinafu/medical_llm_bn_pipeline.git
 2.Virtual Invironet
 3.python -m venv venv
 source venv/bin/activate   # Mac/Linux
@@ -82,5 +81,7 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_password
 DATABASE_URL=sqlite:///./app.db
 6.streamlit run app.py
+
+2. In zip version just run streamlit run app.py or configure the project to run,python configuration
 
 
