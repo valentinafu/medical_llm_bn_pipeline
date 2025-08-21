@@ -76,14 +76,7 @@ conda create -n medical_app python=3.10 -y
 conda activate medical_app
 Install dependencies
 3.pip install requirement.txt
-4.Create .env file with 
-printf "NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=your_password
-DATABASE_URL=sqlite:///./app.db
-" > .env
-
-5. Populate .env file with NEO4J_URI=bolt://localhost:7687
+4.Populate .env file with NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_password
 DATABASE_URL=sqlite:///./app.db
